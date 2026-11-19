@@ -20,28 +20,28 @@ const GITHUB_MOBILE_APK =
 const OS_CONFIGS: Record<"win" | "mac" | "linux" | "android", OSConfig> = {
   win: {
     label: "Terdeteksi: Windows 64-bit",
-    ver: "v1.1.5 .ZIP",
+    ver: "v1.2.0 .ZIP",
     btnText: "Unduh Paket Windows (.zip)",
     btnSub: "Termasuk installer .exe (NSIS), .msi & panduan instalasi TXT",
-    downloadUrl: `${GITHUB_DESKTOP_BASE}ILoveBesi-POS-Windows-64bit.zip`,
+    downloadUrl: `${GITHUB_DESKTOP_BASE}by.store-POS-Windows-64bit.zip`,
   },
   mac: {
     label: "Terdeteksi: macOS",
-    ver: "v1.1.5 .DMG .ZIP",
+    ver: "v1.2.0 .DMG .ZIP",
     btnText: "Unduh untuk Apple Silicon (.zip)",
     btnSub: "Pakai Intel Mac? Pilih di tab macOS",
-    downloadUrl: `${GITHUB_DESKTOP_BASE}ILoveBesi-POS-macOS-Apple-Silicon.zip`,
+    downloadUrl: `${GITHUB_DESKTOP_BASE}by.store-POS-macOS-Apple-Silicon.zip`,
   },
   linux: {
     label: "Terdeteksi: Linux",
-    ver: "v1.1.5 .AppImage .ZIP",
+    ver: "v1.2.0 .AppImage .ZIP",
     btnText: "Unduh Universal Portable (.zip)",
     btnSub: "Berisi AppImage & panduan TXT. Paket .deb dan .rpm ada di tab Linux",
-    downloadUrl: `${GITHUB_DESKTOP_BASE}ILoveBesi-POS-Linux-AppImage.zip`,
+    downloadUrl: `${GITHUB_DESKTOP_BASE}by.store-POS-Linux-AppImage.zip`,
   },
   android: {
     label: "Terdeteksi: Android Smartphone",
-    ver: "v1.1.1 .APK",
+    ver: "v1.2.0 .APK",
     btnText: "Unduh by.store Mobile (.apk)",
     btnSub: "Dashboard realtime pemilik toko untuk Android",
     downloadUrl: GITHUB_MOBILE_APK,
@@ -1025,7 +1025,7 @@ export default function LandingPage() {
             <div className="links">
               <a
                 className="lnk f"
-                href={`${GITHUB_DESKTOP_BASE}ILoveBesi-POS-Windows-64bit.zip`}
+                href={`${GITHUB_DESKTOP_BASE}by.store-POS-Windows-64bit.zip`}
               >
                 Unduh Paket Windows (.zip)<span>64-bit (v1.1.5)</span>
               </a>
@@ -1053,19 +1053,19 @@ export default function LandingPage() {
             <div className="links">
               <a
                 className="lnk"
-                href={`${GITHUB_DESKTOP_BASE}ILoveBesi-POS-Linux-RPM.zip`}
+                href={`${GITHUB_DESKTOP_BASE}by.store-POS-Linux-RPM.zip`}
               >
                 Fedora / RHEL<span>.rpm .zip</span>
               </a>
               <a
                 className="lnk"
-                href={`${GITHUB_DESKTOP_BASE}ILoveBesi-POS-Linux-DEB.zip`}
+                href={`${GITHUB_DESKTOP_BASE}by.store-POS-Linux-DEB.zip`}
               >
                 Ubuntu / Debian<span>.deb .zip</span>
               </a>
               <a
                 className="lnk"
-                href={`${GITHUB_DESKTOP_BASE}ILoveBesi-POS-Linux-AppImage.zip`}
+                href={`${GITHUB_DESKTOP_BASE}by.store-POS-Linux-AppImage.zip`}
               >
                 Universal Portable<span>.AppImage .zip</span>
               </a>
@@ -1090,13 +1090,13 @@ export default function LandingPage() {
             <div className="links">
               <a
                 className="lnk"
-                href={`${GITHUB_DESKTOP_BASE}ILoveBesi-POS-macOS-Apple-Silicon.zip`}
+                href={`${GITHUB_DESKTOP_BASE}by.store-POS-macOS-Apple-Silicon.zip`}
               >
                 Apple Silicon (M1/M2/M3/M4)<span>.dmg .zip</span>
               </a>
               <a
                 className="lnk"
-                href={`${GITHUB_DESKTOP_BASE}ILoveBesi-POS-macOS-Intel.zip`}
+                href={`${GITHUB_DESKTOP_BASE}by.store-POS-macOS-Intel.zip`}
               >
                 Intel Mac<span>.dmg .zip</span>
               </a>
