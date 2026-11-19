@@ -13,9 +13,9 @@ interface OSConfig {
 }
 
 const GITHUB_DESKTOP_BASE =
-  "https://github.com/kikiexe/ILoveBesi-desktop/releases/latest/download/";
+  "https://github.com/by-store/desktop/releases/latest/download/";
 const GITHUB_MOBILE_APK =
-  "https://github.com/kikiexe/ILoveBesi-mobile/releases/latest/download/app-release.apk";
+  "https://github.com/by-store/mobile/releases/latest/download/app-release.apk";
 
 const OS_CONFIGS: Record<"win" | "mac" | "linux" | "android", OSConfig> = {
   win: {
@@ -42,7 +42,7 @@ const OS_CONFIGS: Record<"win" | "mac" | "linux" | "android", OSConfig> = {
   android: {
     label: "Terdeteksi: Android Smartphone",
     ver: "v1.1.1 .APK",
-    btnText: "Unduh ILuvBesi Mobile (.apk)",
+    btnText: "Unduh by.store Mobile (.apk)",
     btnSub: "Dashboard realtime pemilik toko untuk Android",
     downloadUrl: GITHUB_MOBILE_APK,
   },
@@ -790,7 +790,7 @@ export default function LandingPage() {
       <header>
         <div className="wrap nav">
           <Link className="brand" href="#">
-            ILuvBesi <span>POS</span>
+            by.store <span>POS</span>
           </Link>
           {isLoggedIn ? (
             <Link href="/dashboard" className="btn solid">
@@ -852,7 +852,7 @@ export default function LandingPage() {
 
           <div className="win" aria-label="Pratinjau antarmuka kasir">
             <div className="win-h">
-              <span>ILuvBesi POS Desktop v1.1.5 [Kasir: Budi - Shift Aktif]</span>
+              <span>by.store POS Desktop v1.1.5 [Kasir: Budi - Shift Aktif]</span>
               <span className="on">ONLINE</span>
             </div>
             <div className="win-b">
@@ -1016,8 +1016,8 @@ export default function LandingPage() {
               <div className="files">
                 <b>Isi paket .ZIP</b>
                 <ul>
-                  <li>ILuvBesi POS Setup .exe (NSIS)</li>
-                  <li>ILuvBesi POS Setup .msi</li>
+                  <li>by.store POS Setup .exe (NSIS)</li>
+                  <li>by.store POS Setup .msi</li>
                   <li>PANDUAN-INSTALASI-DAN-PENGGUNAAN.txt</li>
                 </ul>
               </div>
@@ -1108,7 +1108,7 @@ export default function LandingPage() {
             role="tabpanel"
           >
             <div>
-              <h3>ILuvBesi Mobile untuk Android</h3>
+              <h3>by.store Mobile untuk Android</h3>
               <p>
                 Aplikasi dashboard khusus pemilik toko (owner) berbasis Android. Pantau omzet realtime,
                 riwayat nota penjualan kasir, ubah stok gudang &amp; HPP barang, dan pantau tagihan tempo piutang langsung dari smartphone Anda.
@@ -1128,11 +1128,11 @@ export default function LandingPage() {
                 className="lnk f"
                 href={GITHUB_MOBILE_APK}
               >
-                Unduh ILuvBesi Mobile (.APK)<span>v1.1.1 .apk</span>
+                Unduh by.store Mobile (.APK)<span>v1.1.1 .apk</span>
               </a>
               <a
                 className="lnk"
-                href="https://github.com/kikiexe/ILoveBesi-mobile/releases"
+                href="https://github.com/by-store/mobile/releases"
                 target="_blank"
                 rel="noopener"
               >
@@ -1184,7 +1184,7 @@ export default function LandingPage() {
       <footer>
         <div className="wrap foot">
           <div>
-            <strong>ILuvBesi POS</strong> - Sistem kasir &amp; manajemen toko besi
+            <strong>by.store POS</strong> - Sistem kasir &amp; manajemen toko besi
             hollow galvanis.
           </div>
           <nav>

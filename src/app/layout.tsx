@@ -9,12 +9,12 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "ILuvBesi - Manajemen Toko",
+  title: "by.store - Manajemen Toko",
   description: "Web Dashboard Pemilik Toko",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "ILuvBesi",
+    title: "by.store",
   },
   icons: {
     icon: "/icons/icon-192.png",

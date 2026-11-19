@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "ILuvBesi - Manajemen Toko",
-    short_name: "ILuvBesi",
+    name: "by.store - Manajemen Toko",
+    short_name: "by.store",
     description: "Aplikasi Web Dashboard Manajemen Toko",
     start_url: "/",
     display: "standalone",
