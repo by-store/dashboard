@@ -1,1200 +1,278 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import {
+  DESKTOP_PLATFORMS,
+  DESKTOP_RELEASES_URL,
+  DESKTOP_VERSION,
+  MOBILE_APK_URL,
+  MOBILE_INSTALL_STEPS,
+  MOBILE_RELEASES_URL,
+  MOBILE_VERSION,
+  detectDesktopOs,
+  isAndroidDevice,
+  type DesktopOs,
+} from "./_landing/downloads";
 
-interface OSConfig {
-  label: string;
-  ver: string;
-  btnText: string;
-  btnSub: string;
-  downloadUrl: string;
-}
+const DESKTOP_OS_ORDER: DesktopOs[] = ["win", "mac", "linux"];
 
-const GITHUB_DESKTOP_BASE =
-  "https://github.com/by-store/desktop/releases/latest/download/";
-const GITHUB_MOBILE_APK =
-  "https://github.com/by-store/mobile/releases/latest/download/app-release.apk";
-
-const OS_CONFIGS: Record<"win" | "mac" | "linux" | "android", OSConfig> = {
-  win: {
-    label: "Terdeteksi: Windows 64-bit",
-    ver: "v1.2.0 .ZIP",
-    btnText: "Unduh Paket Windows (.zip)",
-    btnSub: "Termasuk installer .exe (NSIS), .msi & panduan instalasi TXT",
-    downloadUrl: `${GITHUB_DESKTOP_BASE}by.store-POS-Windows-64bit.zip`,
-  },
-  mac: {
-    label: "Terdeteksi: macOS",
-    ver: "v1.2.0 .DMG .ZIP",
-    btnText: "Unduh untuk Apple Silicon (.zip)",
-    btnSub: "Pakai Intel Mac? Pilih di tab macOS",
-    downloadUrl: `${GITHUB_DESKTOP_BASE}by.store-POS-macOS-Apple-Silicon.zip`,
-  },
-  linux: {
-    label: "Terdeteksi: Linux",
-    ver: "v1.2.0 .AppImage .ZIP",
-    btnText: "Unduh Universal Portable (.zip)",
-    btnSub: "Berisi AppImage & panduan TXT. Paket .deb dan .rpm ada di tab Linux",
-    downloadUrl: `${GITHUB_DESKTOP_BASE}by.store-POS-Linux-AppImage.zip`,
-  },
-  android: {
-    label: "Terdeteksi: Android Smartphone",
-    ver: "v1.2.0 .APK",
-    btnText: "Unduh by.store Mobile (.apk)",
-    btnSub: "Dashboard realtime pemilik toko untuk Android",
-    downloadUrl: GITHUB_MOBILE_APK,
-  },
-};
-
-interface CartRow {
-  name: string;
-  qty: string;
-  price: string;
-  subtotal: string;
-  val: number;
-}
-
-const DEMO_ROWS: CartRow[] = [
-  {
-    name: "Hollow Galvanis 40x40 1.6mm",
-    qty: "10 BTG",
-    price: "125.000",
-    subtotal: "1.250.000",
-    val: 1250000,
-  },
-  {
-    name: "Plat Strip 25x3mm 6M",
-    qty: "5 BTG",
-    price: "47.000",
-    subtotal: "235.000",
-    val: 235000,
-  },
+const DESKTOP_FEATURES = [
+  "Operasional penuh lewat keyboard, pintasan F1 sampai F12",
+  "Katalog per dimensi dan ketebalan, HPP moving average",
+  "Transaksi kredit dengan DP, limit piutang, dan cicilan",
+  "Buka dan tutup shift kasir dengan rekap penjualan",
+  "Cetak struk thermal 58/80mm dan faktur PDF",
 ];
 
-export default function LandingPage() {
-  const [activeTab, setActiveTab] = useState<"win" | "linux" | "mac" | "android">("win");
-  const [detectedOs, setDetectedOs] = useState<"win" | "linux" | "mac" | "android">("win");
+const MOBILE_FEATURES = [
+  "Omzet harian realtime dari semua kasir",
+  "Riwayat nota penjualan per kasir",
+  "Ubah stok gudang dan HPP barang",
+  "Pantau tagihan jatuh tempo dan catat pelunasan",
+];
+
+function DownloadIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14" />
+    </svg>
+  );
+}
+
+function InstallSteps({ steps }: { steps: string[] }) {
+  return (
+    <ol className="mt-5 space-y-2 border-t border-slate-200 pt-5 text-sm text-slate-600">
+      {steps.map((step, index) => (
+        <li key={step} className="flex gap-3">
+          <span className="font-semibold tabular-nums text-slate-900">{index + 1}.</span>
+          <span>{step}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function useClientEnvironment() {
+  const [detectedOs, setDetectedOs] = useState<DesktopOs>("win");
+  const [isAndroid, setIsAndroid] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // POS Demo states
-  const [cartItems, setCartItems] = useState<CartRow[]>([]);
-  const [runningTotal, setRunningTotal] = useState(0);
-  const [activeKey, setActiveKey] = useState<string | null>(null);
-  const [paidStatus, setPaidStatus] = useState<string>("");
-
-  const timersRef = useRef<NodeJS.Timeout[]>([]);
-  const animFrameRef = useRef<number | null>(null);
-
   useEffect(() => {
-    // Detect OS
-    const ua = (navigator.userAgent || "") + " " + (navigator.platform || "");
-    let os: "win" | "linux" | "mac" | "android" = "win";
-    if (/Android/i.test(ua)) {
-      os = "android";
-    } else if (/Mac/i.test(ua) && !/iPhone|iPad/i.test(ua)) {
-      os = "mac";
-    } else if (/Linux/i.test(ua)) {
-      os = "linux";
-    }
-    setDetectedOs(os);
-    setActiveTab(os);
+    const userAgent = `${navigator.userAgent} ${navigator.platform}`;
+    setDetectedOs(detectDesktopOs(userAgent));
+    setIsAndroid(isAndroidDevice(userAgent));
 
-    // Check supabase auth
-    const checkAuth = async () => {
-      try {
-        const supabase = createClient();
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        setIsLoggedIn(!!session);
-      } catch {
-        setIsLoggedIn(false);
-      }
-    };
-    checkAuth();
+    createClient()
+      .auth.getSession()
+      .then(({ data }) => setIsLoggedIn(Boolean(data.session)))
+      .catch(() => setIsLoggedIn(false));
   }, []);
 
-  // Demo loop animation
-  useEffect(() => {
-    const isReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (isReduced) {
-      setCartItems(DEMO_ROWS);
-      setRunningTotal(1485000);
-      setPaidStatus("LUNAS. Nota dicetak.");
-      return;
-    }
+  return { detectedOs, isAndroid, isLoggedIn };
+}
 
-    const clearAll = () => {
-      timersRef.current.forEach((t) => clearTimeout(t));
-      timersRef.current = [];
-      if (animFrameRef.current) {
-        cancelAnimationFrame(animFrameRef.current);
-        animFrameRef.current = null;
-      }
-    };
+export default function LandingPage() {
+  const { detectedOs, isAndroid, isLoggedIn } = useClientEnvironment();
+  const [selectedOs, setSelectedOs] = useState<DesktopOs | null>(null);
 
-    const countSmooth = (from: number, to: number, duration: number) => {
-      const startTime = performance.now();
-      const step = (now: number) => {
-        const progress = Math.min((now - startTime) / duration, 1);
-        setRunningTotal(Math.round(from + (to - from) * progress));
-        if (progress < 1) {
-          animFrameRef.current = requestAnimationFrame(step);
-        }
-      };
-      animFrameRef.current = requestAnimationFrame(step);
-    };
-
-    const runSimulation = () => {
-      clearAll();
-      setCartItems([]);
-      setRunningTotal(0);
-      setPaidStatus("");
-      setActiveKey(null);
-
-      // F1 Hit at 700ms
-      timersRef.current.push(
-        setTimeout(() => {
-          setActiveKey("f1");
-          timersRef.current.push(setTimeout(() => setActiveKey(null), 380));
-        }, 700)
-      );
-
-      // Row 1 at 1300ms
-      timersRef.current.push(
-        setTimeout(() => {
-          setCartItems([DEMO_ROWS[0]]);
-          countSmooth(0, DEMO_ROWS[0].val, 600);
-        }, 1300)
-      );
-
-      // Row 2 at 2700ms
-      timersRef.current.push(
-        setTimeout(() => {
-          setCartItems([DEMO_ROWS[0], DEMO_ROWS[1]]);
-          countSmooth(DEMO_ROWS[0].val, DEMO_ROWS[0].val + DEMO_ROWS[1].val, 600);
-        }, 2700)
-      );
-
-      // F8 Hit at 4600ms
-      timersRef.current.push(
-        setTimeout(() => {
-          setActiveKey("f8");
-          timersRef.current.push(setTimeout(() => setActiveKey(null), 380));
-        }, 4600)
-      );
-
-      // F7 Hit at 5600ms
-      timersRef.current.push(
-        setTimeout(() => {
-          setActiveKey("f7");
-          timersRef.current.push(setTimeout(() => setActiveKey(null), 380));
-        }, 5600)
-      );
-
-      // Paid status at 6000ms
-      timersRef.current.push(
-        setTimeout(() => {
-          setPaidStatus("LUNAS. Nota dicetak.");
-        }, 6000)
-      );
-
-      // Loop restart at 9000ms
-      timersRef.current.push(
-        setTimeout(() => {
-          runSimulation();
-        }, 9000)
-      );
-    };
-
-    runSimulation();
-
-    return () => clearAll();
-  }, []);
-
-  const currentOsCfg = OS_CONFIGS[detectedOs];
+  const activeOs = selectedOs ?? detectedOs;
+  const platform = DESKTOP_PLATFORMS[activeOs];
 
   return (
-    <div className="landing-scope">
-      {/* External Web Fonts */}
-      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap"
-      />
-
-      <style jsx global>{`
-        :root {
-          --lp-bg: #fff;
-          --lp-bg2: #f8fafc;
-          --lp-line: #e2e8f0;
-          --lp-line2: #cbd5e1;
-          --lp-ink: #0f172a;
-          --lp-muted: #475569;
-          --lp-faint: #64748b;
-          --lp-accent: #1d4ed8;
-          --lp-accent-h: #1e40af;
-          --lp-sel: #eff6ff;
-          --lp-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
-          --lp-mono: 'JetBrains Mono', ui-monospace, monospace;
-        }
-
-        .landing-scope {
-          font-family: var(--lp-sans);
-          background: var(--lp-bg);
-          color: var(--lp-ink);
-          line-height: 1.6;
-          -webkit-font-smoothing: antialiased;
-          overflow-x: hidden;
-          min-height: 100vh;
-        }
-
-        .landing-scope * {
-          box-sizing: border-box;
-        }
-
-        .landing-scope a {
-          color: inherit;
-          text-decoration: none;
-        }
-
-        .landing-scope .wrap {
-          max-width: 1100px;
-          margin: 0 auto;
-          padding: 0 1.5rem;
-        }
-
-        .landing-scope :focus-visible {
-          outline: 2px solid var(--lp-accent);
-          outline-offset: 2px;
-        }
-
-        .landing-scope header {
-          border-bottom: 1px solid var(--lp-line);
-        }
-
-        .landing-scope .nav {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          height: 3.75rem;
-        }
-
-        .landing-scope .brand {
-          font-weight: 800;
-          font-size: 1.1rem;
-          letter-spacing: -0.02em;
-        }
-
-        .landing-scope .brand span {
-          color: var(--lp-accent);
-        }
-
-        .landing-scope .btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.5rem;
-          font-family: var(--lp-sans);
-          font-size: 0.85rem;
-          font-weight: 700;
-          padding: 0.6rem 1rem;
-          border: 1px solid var(--lp-line2);
-          border-radius: 6px;
-          background: #fff;
-          color: var(--lp-ink);
-          cursor: pointer;
-          text-decoration: none;
-        }
-
-        .landing-scope .btn:hover {
-          background: var(--lp-bg2);
-          border-color: #94a3b8;
-        }
-
-        .landing-scope .btn.solid {
-          background: var(--lp-accent);
-          border-color: transparent;
-          color: #fff;
-        }
-
-        .landing-scope .btn.solid:hover {
-          background: var(--lp-accent-h);
-        }
-
-        .landing-scope .hero {
-          padding: 4.5rem 0 4rem;
-        }
-
-        .landing-scope .hero-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 3.5rem;
-          align-items: center;
-        }
-
-        .landing-scope .tag {
-          display: inline-block;
-          font-family: var(--lp-mono);
-          font-weight: 700;
-          font-size: 0.75rem;
-          color: var(--lp-accent);
-          background: var(--lp-sel);
-          border: 1px solid #bfdbfe;
-          padding: 0.2rem 0.6rem;
-          border-radius: 4px;
-          margin-bottom: 1.2rem;
-        }
-
-        .landing-scope h1 {
-          font-size: clamp(2.3rem, 4.6vw, 3.5rem);
-          font-weight: 800;
-          line-height: 1.08;
-          letter-spacing: -0.03em;
-          margin-bottom: 1.1rem;
-        }
-
-        .landing-scope .lead {
-          font-size: 1.05rem;
-          color: var(--lp-muted);
-          max-width: 30rem;
-          margin-bottom: 1.8rem;
-        }
-
-        .landing-scope .dl {
-          border: 1px solid var(--lp-line2);
-          border-radius: 8px;
-          padding: 1.1rem;
-          max-width: 31rem;
-          background: var(--lp-bg2);
-        }
-
-        .landing-scope .dl-top {
-          display: flex;
-          justify-content: space-between;
-          font-family: var(--lp-mono);
-          font-weight: 500;
-          font-size: 0.72rem;
-          color: var(--lp-faint);
-          margin-bottom: 0.7rem;
-        }
-
-        .landing-scope .dl .btn.solid {
-          width: 100%;
-          justify-content: space-between;
-          padding: 0.85rem 1rem;
-          font-size: 0.95rem;
-          text-align: left;
-        }
-
-        .landing-scope .dl small {
-          display: block;
-          font-weight: 500;
-          font-size: 0.72rem;
-          opacity: 0.85;
-        }
-
-        .landing-scope .dl p {
-          font-size: 0.78rem;
-          color: var(--lp-muted);
-          margin-top: 0.8rem;
-        }
-
-        .landing-scope .dl .alt {
-          margin-top: 0.5rem;
-        }
-
-        .landing-scope .dl .alt a {
-          color: var(--lp-accent);
-          font-weight: 600;
-        }
-
-        .landing-scope .dl .alt a:hover {
-          text-decoration: underline;
-        }
-
-        /* Mockup */
-        .landing-scope .win {
-          background: #0f172a;
-          color: #e2e8f0;
-          border-radius: 8px;
-          overflow: hidden;
-          font-family: var(--lp-mono);
-          box-shadow: 0 20px 40px -12px rgba(15, 23, 42, 0.3);
-        }
-
-        .landing-scope .win-h {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 0.55rem 0.85rem;
-          background: #1e293b;
-          font-size: 0.64rem;
-          color: #94a3b8;
-          gap: 0.5rem;
-        }
-
-        .landing-scope .win-h .on {
-          color: #4ade80;
-          font-weight: 700;
-        }
-
-        .landing-scope .win-b {
-          padding: 1rem;
-        }
-
-        .landing-scope .tot {
-          background: #2f5fe8;
-          color: #fff;
-          padding: 0.8rem 0.9rem;
-          border-radius: 5px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 0.9rem;
-        }
-
-        .landing-scope .tot span {
-          font-size: 0.68rem;
-          font-weight: 700;
-        }
-
-        .landing-scope .tot b {
-          font-size: 1.5rem;
-          font-weight: 700;
-        }
-
-        .landing-scope table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 0.7rem;
-          margin-bottom: 0.9rem;
-        }
-
-        .landing-scope th {
-          text-align: left;
-          color: #64748b;
-          font-weight: 500;
-          padding: 0.3rem 0.4rem;
-          border-bottom: 1px solid #334155;
-        }
-
-        .landing-scope td {
-          padding: 0.45rem 0.4rem;
-          border-bottom: 1px solid #1e293b;
-        }
-
-        .landing-scope .r {
-          text-align: right;
-        }
-
-        .landing-scope tbody tr {
-          animation: rowin 0.35s ease both;
-        }
-
-        @keyframes rowin {
-          from {
-            opacity: 0;
-            background: #1a2a52;
-          }
-        }
-
-        .landing-scope .keys {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 0.4rem;
-          font-size: 0.62rem;
-          text-align: center;
-        }
-
-        .landing-scope .keys div {
-          background: #1e293b;
-          border-radius: 4px;
-          padding: 0.4rem 0.2rem;
-          transition: 0.15s;
-        }
-
-        .landing-scope .keys b {
-          color: #8fb0ff;
-        }
-
-        .landing-scope .keys div.hit {
-          background: #2f5fe8;
-          color: #fff;
-        }
-
-        .landing-scope .keys div.hit b {
-          color: #fff;
-        }
-
-        .landing-scope .paid {
-          height: 1.3rem;
-          margin-top: 0.7rem;
-          font-size: 0.7rem;
-          color: #4ade80;
-          font-weight: 700;
-        }
-
-        .landing-scope section {
-          padding: 4.5rem 0;
-          border-top: 1px solid var(--lp-line);
-        }
-
-        .landing-scope .sh {
-          margin-bottom: 2.2rem;
-        }
-
-        .landing-scope h2 {
-          font-size: clamp(1.6rem, 3vw, 2.1rem);
-          font-weight: 800;
-          letter-spacing: -0.02em;
-          line-height: 1.15;
-          margin-bottom: 0.5rem;
-        }
-
-        .landing-scope .sh p {
-          color: var(--lp-muted);
-          max-width: 34rem;
-        }
-
-        .landing-scope .feat {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 1rem;
-        }
-
-        .landing-scope .card {
-          border: 1px solid var(--lp-line);
-          border-radius: 8px;
-          padding: 1.4rem;
-          background: #fff;
-        }
-
-        .landing-scope .card h3 {
-          font-size: 1.05rem;
-          font-weight: 800;
-          margin-bottom: 0.4rem;
-        }
-
-        .landing-scope .card p {
-          color: var(--lp-muted);
-          font-size: 0.92rem;
-        }
-
-        .landing-scope .dsec {
-          background: var(--lp-bg2);
-        }
-
-        .landing-scope .tabs {
-          display: flex;
-          gap: 0.4rem;
-          margin-bottom: 1rem;
-        }
-
-        .landing-scope .tab {
-          font: 700 0.85rem var(--lp-sans);
-          padding: 0.5rem 1.1rem;
-          border: 1px solid var(--lp-line2);
-          border-radius: 6px;
-          background: #fff;
-          color: var(--lp-muted);
-          cursor: pointer;
-        }
-
-        .landing-scope .tab[aria-selected="true"] {
-          border-color: var(--lp-accent);
-          background: var(--lp-sel);
-          color: var(--lp-accent);
-        }
-
-        .landing-scope .panel {
-          display: none;
-          background: #fff;
-          border: 1px solid var(--lp-line);
-          border-radius: 8px;
-          padding: 1.6rem;
-          grid-template-columns: 1fr 1fr;
-          gap: 2rem;
-        }
-
-        .landing-scope .panel.on {
-          display: grid;
-        }
-
-        .landing-scope .panel h3 {
-          font-size: 1.2rem;
-          font-weight: 800;
-          margin-bottom: 0.4rem;
-        }
-
-        .landing-scope .panel p {
-          color: var(--lp-muted);
-          font-size: 0.92rem;
-          margin-bottom: 1rem;
-        }
-
-        .landing-scope .files {
-          font: 500 0.76rem var(--lp-mono);
-          color: var(--lp-muted);
-          border: 1px solid var(--lp-line);
-          border-radius: 6px;
-          padding: 0.8rem 0.9rem;
-          background: var(--lp-bg2);
-        }
-
-        .landing-scope .files b {
-          display: block;
-          margin-bottom: 0.3rem;
-          color: var(--lp-ink);
-        }
-
-        .landing-scope .files li {
-          list-style: none;
-          padding: 0.1rem 0;
-        }
-
-        .landing-scope .links {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-          justify-content: center;
-        }
-
-        .landing-scope .lnk {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 1rem;
-          border: 1px solid var(--lp-line2);
-          border-radius: 6px;
-          padding: 0.8rem 1rem;
-          font-weight: 700;
-          font-size: 0.9rem;
-          background: #fff;
-        }
-
-        .landing-scope .lnk:hover {
-          border-color: var(--lp-accent);
-          color: var(--lp-accent);
-        }
-
-        .landing-scope .lnk span {
-          font: 500 0.72rem var(--lp-mono);
-          color: var(--lp-faint);
-        }
-
-        .landing-scope .lnk.f {
-          background: var(--lp-accent);
-          border-color: transparent;
-          color: #fff;
-        }
-
-        .landing-scope .lnk.f span {
-          color: #bfdbfe;
-        }
-
-        .landing-scope .lnk.f:hover {
-          background: var(--lp-accent-h);
-          color: #fff;
-        }
-
-        .landing-scope .steps {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 1.5rem;
-        }
-
-        .landing-scope .n {
-          width: 2rem;
-          height: 2rem;
-          border-radius: 50%;
-          background: var(--lp-accent);
-          color: #fff;
-          font-weight: 800;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 0.8rem;
-        }
-
-        .landing-scope .step h3 {
-          font-size: 1.05rem;
-          font-weight: 800;
-          margin-bottom: 0.3rem;
-        }
-
-        .landing-scope .step p {
-          color: var(--lp-muted);
-          font-size: 0.92rem;
-        }
-
-        .landing-scope footer {
-          border-top: 1px solid var(--lp-line);
-          padding: 2rem 0;
-          font-size: 0.85rem;
-          color: var(--lp-muted);
-        }
-
-        .landing-scope .foot {
-          display: flex;
-          justify-content: space-between;
-          gap: 1rem;
-          flex-wrap: wrap;
-          align-items: center;
-        }
-
-        .landing-scope .foot nav {
-          display: flex;
-          gap: 1.3rem;
-          flex-wrap: wrap;
-        }
-
-        .landing-scope .foot a:hover {
-          color: var(--lp-accent);
-        }
-
-        @media (max-width: 860px) {
-          .landing-scope .hero-grid,
-          .landing-scope .feat,
-          .landing-scope .steps {
-            grid-template-columns: 1fr;
-          }
-          .landing-scope .panel.on {
-            grid-template-columns: 1fr;
-            gap: 1.2rem;
-          }
-          .landing-scope .hero {
-            padding-top: 3rem;
-          }
-          .landing-scope section {
-            padding: 3.5rem 0;
-          }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .landing-scope * {
-            animation: none !important;
-            transition: none !important;
-            scroll-behavior: auto;
-          }
-        }
-      `}</style>
-
-      {/* Header */}
-      <header>
-        <div className="wrap nav">
-          <Link className="brand" href="#">
-            by.store <span>POS</span>
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
+          <Link href="/" className="flex items-center gap-2.5">
+            <Image src="/icons/icon-192.png" alt="" width={32} height={32} className="rounded" />
+            <span className="text-lg font-bold tracking-tight">by.store</span>
           </Link>
-          {isLoggedIn ? (
-            <Link href="/dashboard" className="btn solid">
-              Buka Dashboard
-            </Link>
-          ) : (
-            <Link href="/login" className="btn">
-              Dashboard Owner
-            </Link>
-          )}
+          <Link
+            href={isLoggedIn ? "/dashboard" : "/login"}
+            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-900"
+          >
+            {isLoggedIn ? "Buka Dashboard" : "Login Pemilik"}
+          </Link>
         </div>
       </header>
 
-      {/* Hero */}
-      <div className="hero">
-        <div className="wrap hero-grid">
-          <div>
-            <span className="tag">v1.1.5 stabil, multi-tenant</span>
-            <h1>Kasir secepat ketikan, untuk toko besi &amp; baja.</h1>
-            <p className="lead">
-              Dirancang khusus untuk transaksi pipa hollow, plat baja, dan besi
-              beton. Operasional 100% lewat papan ketik tanpa sentuh mouse, stok
-              terpotong riil, dan terisolasi per toko.
-            </p>
-            <div className="dl">
-              <div className="dl-top">
-                <span>{currentOsCfg.label}</span>
-                <span>{currentOsCfg.ver}</span>
+      <main>
+        <section className="mx-auto max-w-6xl px-5 pb-16 pt-12 md:pt-16">
+          <h1 className="max-w-2xl text-3xl font-bold tracking-tight md:text-5xl">
+            Unduh aplikasi by.store
+          </h1>
+          <p className="mt-4 max-w-2xl text-base text-slate-600 md:text-lg">
+            Aplikasi kasir untuk komputer toko, dan aplikasi pemantau untuk HP pemilik. Pilih
+            yang Anda butuhkan, gratis untuk akun toko terdaftar.
+          </p>
+
+          <div className="mt-10 grid gap-6 lg:grid-cols-5">
+            {/* Desktop cashier app */}
+            <article
+              className={`rounded-xl border border-slate-200 bg-white p-6 md:p-8 lg:col-span-3 ${
+                isAndroid ? "order-2" : "order-1"
+              }`}
+              aria-labelledby="desktop-title"
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 id="desktop-title" className="text-xl font-bold">
+                  Kasir Desktop
+                </h2>
+                <span className="text-sm text-slate-500">Versi {DESKTOP_VERSION}</span>
               </div>
-              <a
-                className="btn solid"
-                href={currentOsCfg.downloadUrl}
+              <p className="mt-1 text-sm text-slate-600">
+                Untuk komputer atau laptop di meja kasir.
+              </p>
+
+              <div
+                className="mt-6 inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1"
+                role="group"
+                aria-label="Pilih sistem operasi"
               >
-                <div>
-                  <span>{currentOsCfg.btnText}</span>
-                  <small>{currentOsCfg.btnSub}</small>
-                </div>
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                >
-                  <path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14" />
-                </svg>
-              </a>
-              <p>
-                Paket instalasi menyertakan{" "}
-                <strong>PANDUAN-INSTALASI-DAN-PENGGUNAAN.txt</strong> berisi petunjuk
-                lengkap shortcut kasir F1-F12 dan panduan operasional.
-              </p>
-              <div className="alt">
-                <a href="#unduh">Sistem operasi lain atau Android APK? Lihat semua unduhan</a>
+                {DESKTOP_OS_ORDER.map((os) => {
+                  const isActive = os === activeOs;
+                  return (
+                    <button
+                      key={os}
+                      type="button"
+                      aria-pressed={isActive}
+                      onClick={() => setSelectedOs(os)}
+                      className={`rounded-md px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-900 ${
+                        isActive ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {DESKTOP_PLATFORMS[os].name}
+                    </button>
+                  );
+                })}
               </div>
-            </div>
-          </div>
+              {activeOs === detectedOs && !isAndroid && (
+                <p className="mt-2 text-xs text-slate-500">Sesuai perangkat yang Anda pakai sekarang.</p>
+              )}
 
-          <div className="win" aria-label="Pratinjau antarmuka kasir">
-            <div className="win-h">
-              <span>by.store POS Desktop v1.1.5 [Kasir: Budi - Shift Aktif]</span>
-              <span className="on">ONLINE</span>
-            </div>
-            <div className="win-b">
-              <div className="tot">
-                <span>Total Tagihan [F7]</span>
-                <b>Rp {runningTotal.toLocaleString("id-ID")}</b>
-              </div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Item / Barang</th>
-                    <th>Qty</th>
-                    <th className="r">Harga</th>
-                    <th className="r">Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cartItems.map((r, i) => (
-                    <tr key={i}>
-                      <td>{r.name}</td>
-                      <td>{r.qty}</td>
-                      <td className="r">{r.price}</td>
-                      <td className="r">{r.subtotal}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="keys">
-                <div className={activeKey === "f1" ? "hit" : ""}>
-                  <b>[F1]</b> Cari
-                </div>
-                <div className={activeKey === "f7" ? "hit" : ""}>
-                  <b>[F7]</b> Bayar
-                </div>
-                <div className={activeKey === "f8" ? "hit" : ""}>
-                  <b>[F8]</b> Pelanggan
-                </div>
-                <div>
-                  <b>[Esc]</b> Tutup Kasir
-                </div>
-              </div>
-              <div className="paid">{paidStatus}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Features */}
-      <section>
-        <div className="wrap">
-          <div className="sh">
-            <h2>Dibuat untuk kebutuhan toko besi</h2>
-            <p>
-              Bukan software kasir ritel umum. Disesuaikan dengan alur barang
-              material dan piutang kontraktor.
-            </p>
-          </div>
-          <div className="feat">
-            <div className="card">
-              <h3>100% navigasi keyboard</h3>
-              <p>
-                Tombol fungsi F1 sampai F11 memungkinkan kasir mengetik nomor nota,
-                mencari hollow, dan mencetak faktur dalam hitungan detik tanpa
-                menyentuh mouse.
-              </p>
-            </div>
-            <div className="card">
-              <h3>Katalog batang &amp; tebal</h3>
-              <p>
-                Manajemen dimensi pipa dan ketebalan milimeter presisi. Harga modal
-                HPP terhitung otomatis dengan moving average.
-              </p>
-            </div>
-            <div className="card">
-              <h3>Cicilan &amp; piutang kredit</h3>
-              <p>
-                Transaksi KREDIT dengan uang muka (DP), limit piutang per
-                pelanggan, histori faktur, dan modul pelunasan cicilan terpadu.
-              </p>
-            </div>
-            <div className="card">
-              <h3>Buka &amp; tutup kasir (shift)</h3>
-              <p>
-                Kasir menginput modal awal laci saat buka toko. Saat tutup, sistem
-                menampilkan rekapitulasi vertikal penjualan.
-              </p>
-            </div>
-            <div className="card" style={{ borderColor: '#3b82f6', background: '#eff6ff' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                <h3 style={{ color: '#1e3a8a', margin: 0 }}>Dashboard Mobile Android</h3>
-                <span style={{ fontSize: '0.72rem', fontWeight: 800, background: '#1e3a8a', color: '#fff', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
-                  BARU v1.1.1
+              <a
+                href={platform.primary.url}
+                className="mt-5 flex w-full items-center justify-between gap-4 rounded-lg bg-blue-900 px-5 py-4 text-white hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-900"
+              >
+                <span>
+                  <span className="block text-base font-bold">{platform.primary.label}</span>
+                  <span className="block text-sm text-blue-100">{platform.primary.detail}</span>
                 </span>
-              </div>
-              <p style={{ color: '#1e40af', marginBottom: '0.8rem' }}>
-                Khusus pemilik toko: pantau omzet realtime, riwayat nota kasir, ubah stok &amp; HPP, dan catat cicilan piutang langsung dari smartphone Android.
-              </p>
-              <a
-                href={GITHUB_MOBILE_APK}
-                className="btn solid"
-                style={{ fontSize: '0.8rem', padding: '0.5rem 0.8rem', width: 'fit-content' }}
-              >
-                Unduh Dashboard Mobile APK (.apk)
+                <DownloadIcon />
               </a>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      {/* Downloads */}
-      <section className="dsec" id="unduh">
-        <div className="wrap">
-          <div className="sh">
-            <h2>Unduh untuk semua sistem operasi</h2>
-            <p>
-              Tersedia aplikasi desktop kasir untuk Windows, Linux, macOS, dan aplikasi mobile dashboard pemilik toko untuk Android.
-            </p>
-          </div>
-          <div className="tabs" role="tablist">
-            <button
-              className="tab"
-              role="tab"
-              aria-selected={activeTab === "win"}
-              onClick={() => setActiveTab("win")}
-            >
-              Windows
-            </button>
-            <button
-              className="tab"
-              role="tab"
-              aria-selected={activeTab === "linux"}
-              onClick={() => setActiveTab("linux")}
-            >
-              Linux
-            </button>
-            <button
-              className="tab"
-              role="tab"
-              aria-selected={activeTab === "mac"}
-              onClick={() => setActiveTab("mac")}
-            >
-              macOS
-            </button>
-            <button
-              className="tab"
-              role="tab"
-              aria-selected={activeTab === "android"}
-              onClick={() => setActiveTab("android")}
-            >
-              Android (Mobile APK)
-            </button>
-          </div>
+              {platform.alternatives.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {platform.alternatives.map((option) => (
+                    <a
+                      key={option.url}
+                      href={option.url}
+                      className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-900"
+                    >
+                      {option.label} <span className="text-slate-500">{option.detail}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
 
-          <div className={`panel ${activeTab === "win" ? "on" : ""}`} role="tabpanel">
+              <p className="mt-4 text-xs text-slate-500">Butuh: {platform.requirement}</p>
+              <InstallSteps steps={platform.installSteps} />
+            </article>
+
+            {/* Mobile owner app */}
+            <article
+              className={`flex flex-col rounded-xl border border-slate-200 bg-white p-6 md:p-8 lg:col-span-2 ${
+                isAndroid ? "order-1" : "order-2"
+              }`}
+              aria-labelledby="mobile-title"
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 id="mobile-title" className="text-xl font-bold">
+                  Mobile Pemilik
+                </h2>
+                <span className="text-sm text-slate-500">Versi {MOBILE_VERSION}</span>
+              </div>
+              <p className="mt-1 text-sm text-slate-600">
+                Untuk HP Android pemilik toko. Pantau toko dari mana saja.
+              </p>
+
+              <a
+                href={MOBILE_APK_URL}
+                className="mt-6 flex w-full items-center justify-between gap-4 rounded-lg bg-slate-900 px-5 py-4 text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+              >
+                <span>
+                  <span className="block text-base font-bold">Unduh untuk Android</span>
+                  <span className="block text-sm text-slate-300">File .apk, Android 8.0 ke atas</span>
+                </span>
+                <DownloadIcon />
+              </a>
+
+              {!isAndroid && (
+                <p className="mt-3 text-xs text-slate-500">
+                  Buka halaman ini dari HP Android agar file langsung terpasang.
+                </p>
+              )}
+
+              <InstallSteps steps={MOBILE_INSTALL_STEPS} />
+            </article>
+          </div>
+        </section>
+
+        <section className="border-t border-slate-200 bg-white">
+          <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 md:grid-cols-2">
             <div>
-              <h3>Windows 10 / 11</h3>
-              <p>
-                Arsip installer untuk PC kasir berbasis Windows 64-bit. Mendukung
-                instalasi cepat NSIS dan Windows Installer standar.
-              </p>
-              <div className="files">
-                <b>Isi paket .ZIP</b>
-                <ul>
-                  <li>by.store POS Setup .exe (NSIS)</li>
-                  <li>by.store POS Setup .msi</li>
-                  <li>PANDUAN-INSTALASI-DAN-PENGGUNAAN.txt</li>
-                </ul>
-              </div>
+              <h2 className="text-lg font-bold">Di Kasir Desktop</h2>
+              <ul className="mt-4 space-y-2.5 text-slate-600">
+                {DESKTOP_FEATURES.map((feature) => (
+                  <li key={feature} className="border-b border-slate-100 pb-2.5">
+                    {feature}
+                  </li>
+                ))}
+              </ul>
             </div>
-            <div className="links">
-              <a
-                className="lnk f"
-                href={`${GITHUB_DESKTOP_BASE}by.store-POS-Windows-64bit.zip`}
-              >
-                Unduh Paket Windows (.zip)<span>64-bit (v1.1.5)</span>
-              </a>
-            </div>
-          </div>
-
-          <div
-            className={`panel ${activeTab === "linux" ? "on" : ""}`}
-            role="tabpanel"
-          >
             <div>
-              <h3>Distro Linux</h3>
-              <p>
-                Paket native untuk distribusi Linux modern. Siap jalan di workstation
-                toko dengan performa memori ultra-ringan.
+              <h2 className="text-lg font-bold">Di Mobile Pemilik</h2>
+              <ul className="mt-4 space-y-2.5 text-slate-600">
+                {MOBILE_FEATURES.map((feature) => (
+                  <li key={feature} className="border-b border-slate-100 pb-2.5">
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-6 text-sm text-slate-600">
+                Data kasir dan HP pemilik tersinkron otomatis lewat satu akun toko.
               </p>
-              <div className="files">
-                <b>Isi tiap paket .ZIP</b>
-                <ul>
-                  <li>Berkas biner installer (.rpm, .deb, atau .AppImage)</li>
-                  <li>PANDUAN-INSTALASI-DAN-PENGGUNAAN.txt</li>
-                </ul>
-              </div>
-            </div>
-            <div className="links">
-              <a
-                className="lnk"
-                href={`${GITHUB_DESKTOP_BASE}by.store-POS-Linux-RPM.zip`}
-              >
-                Fedora / RHEL<span>.rpm .zip</span>
-              </a>
-              <a
-                className="lnk"
-                href={`${GITHUB_DESKTOP_BASE}by.store-POS-Linux-DEB.zip`}
-              >
-                Ubuntu / Debian<span>.deb .zip</span>
-              </a>
-              <a
-                className="lnk"
-                href={`${GITHUB_DESKTOP_BASE}by.store-POS-Linux-AppImage.zip`}
-              >
-                Universal Portable<span>.AppImage .zip</span>
-              </a>
             </div>
           </div>
+        </section>
+      </main>
 
-          <div className={`panel ${activeTab === "mac" ? "on" : ""}`} role="tabpanel">
-            <div>
-              <h3>macOS Apple</h3>
-              <p>
-                Berkas disk image (.dmg) native untuk laptop atau komputer Mac
-                pemilik toko, teroptimasi untuk chip Apple Silicon dan Intel.
-              </p>
-              <div className="files">
-                <b>Isi tiap paket .ZIP</b>
-                <ul>
-                  <li>Berkas disk image installer (.dmg)</li>
-                  <li>PANDUAN-INSTALASI-DAN-PENGGUNAAN.txt</li>
-                </ul>
-              </div>
-            </div>
-            <div className="links">
-              <a
-                className="lnk"
-                href={`${GITHUB_DESKTOP_BASE}by.store-POS-macOS-Apple-Silicon.zip`}
-              >
-                Apple Silicon (M1/M2/M3/M4)<span>.dmg .zip</span>
-              </a>
-              <a
-                className="lnk"
-                href={`${GITHUB_DESKTOP_BASE}by.store-POS-macOS-Intel.zip`}
-              >
-                Intel Mac<span>.dmg .zip</span>
-              </a>
-            </div>
-          </div>
-
-          <div
-            className={`panel ${activeTab === "android" ? "on" : ""}`}
-            role="tabpanel"
-          >
-            <div>
-              <h3>by.store Mobile untuk Android</h3>
-              <p>
-                Aplikasi dashboard khusus pemilik toko (owner) berbasis Android. Pantau omzet realtime,
-                riwayat nota penjualan kasir, ubah stok gudang &amp; HPP barang, dan pantau tagihan tempo piutang langsung dari smartphone Anda.
-              </p>
-              <div className="files">
-                <b>Spesifikasi Berkas Android</b>
-                <ul>
-                  <li>Format Paket: Berkas Instalasi Mandiri (.APK)</li>
-                  <li>Versi Rilis: v1.1.1 Standalone APK</li>
-                  <li>Kompatibilitas: Android 8.0 (Oreo) ke atas</li>
-                  <li>Fitur: Sinkronisasi database Supabase realtime, tanpa perantara server</li>
-                </ul>
-              </div>
-            </div>
-            <div className="links">
-              <a
-                className="lnk f"
-                href={GITHUB_MOBILE_APK}
-              >
-                Unduh by.store Mobile (.APK)<span>v1.1.1 .apk</span>
-              </a>
-              <a
-                className="lnk"
-                href="https://github.com/by-store/mobile/releases"
-                target="_blank"
-                rel="noopener"
-              >
-                Halaman Rilis GitHub Mobile<span>Semua Rilis APK</span>
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Steps */}
-      <section>
-        <div className="wrap">
-          <div className="sh">
-            <h2>3 langkah mudah memulai</h2>
-          </div>
-          <div className="steps">
-            <div className="step">
-              <div className="n">1</div>
-              <h3>Ekstrak file .ZIP</h3>
-              <p>
-                Klik kanan file .zip yang telah diunduh, pilih Extract All (Ekstrak
-                Semua). Buka file panduan teks jika muncul pesan Microsoft
-                Defender SmartScreen.
-              </p>
-            </div>
-            <div className="step">
-              <div className="n">2</div>
-              <h3>Login akun toko</h3>
-              <p>
-                Buka aplikasi, masukkan email dan password toko Anda. Seluruh
-                katalog barang, harga jual, dan stok otomatis tersinkronisasi.
-              </p>
-            </div>
-            <div className="step">
-              <div className="n">3</div>
-              <h3>Buka kasir &amp; transaksi</h3>
-              <p>
-                Ketik nama kasir jaga dan uang modal awal di laci kasir. Tekan
-                [Enter] untuk membuka meja kasir dan mulai melayani dengan pintasan
-                F1-F12.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer>
-        <div className="wrap foot">
-          <div>
-            <strong>by.store POS</strong> - Sistem kasir &amp; manajemen toko besi
-            hollow galvanis.
-          </div>
-          <nav>
-            <Link href="/login">Login Dashboard Pemilik</Link>
-            <a
-              href="/PANDUAN-INSTALASI-DAN-PENGGUNAAN.txt"
-              target="_blank"
-              rel="noopener"
-            >
-              Panduan Instalasi
+      <footer className="border-t border-slate-200">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-8 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
+          <span>
+            <strong className="text-slate-900">by.store</strong> sistem kasir dan manajemen toko
+          </span>
+          <nav className="flex flex-wrap gap-x-5 gap-y-2">
+            <a href="/PANDUAN-INSTALASI-DAN-PENGGUNAAN.txt" target="_blank" rel="noopener" className="hover:text-slate-900">
+              Panduan instalasi
+            </a>
+            <a href={DESKTOP_RELEASES_URL} target="_blank" rel="noopener" className="hover:text-slate-900">
+              Semua rilis desktop
+            </a>
+            <a href={MOBILE_RELEASES_URL} target="_blank" rel="noopener" className="hover:text-slate-900">
+              Semua rilis mobile
             </a>
           </nav>
         </div>
